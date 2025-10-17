@@ -1,0 +1,88 @@
+import os
+from dotenv import load_dotenv
+from kivy.app import App
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.button import Button
+from kivy.uix.label import Label
+from kivy.uix.textinput import TextInput
+from kivy.uix.scrollview import ScrollView
+from openai import OpenAI
+
+# Load environment variables from medAve.env
+load_dotenv("medAve.env")
+openai_api_key = os.getenv("OPENAI_API_KEY")
+
+if not openai_api_key:
+    raise ValueError("OPENAI_API_KEY not found in medAve.env")
+
+# Initialize OpenAI client
+client = OpenAI(api_key=openai_api_key)
+
+# System prompt (same as before)
+SYSTEM_PROMPT = """
+You are a helpful assistant specialized in the DSM-5 (Diagnostic and Statistical Manual of Mental Disorders, Fifth Edition). 
+You can discuss DSM-5 criteria, provide informational overviews of mental health disorders, and suggest potential diagnoses based on described symptoms. 
+Remember: This is for educational purposes only and not a substitute for professional medical advice. Always recommend consulting a qualified mental health professional for accurate diagnosis and treatment.
+You are intended for use by individuals in the mental health field, such as therapists, counselors, or students, to aid in research or reference.
+Do not provide personalized medical advice. Stick to factual DSM-5 information.
+"""
+
+class DSM5Chatbot(BoxLayout):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.orientation = 'vertical'
+        self.padding = 10
+        self.spacing = 10
+
+        # Scrollable chat output
+        self.chat_scroll = ScrollView()
+        self.chat_label = Label(text="Welcome to DSM-5 Chatbot!\nAsk about disorders or symptoms.\n\nDisclaimer: For educational use only. Consult professionals.", size_hint_y=None, height=400, text_size=(None, None), halign="left", valign="top")
+        self.chat_label.bind(texture_size=self.chat_label.setter('size'))
+        self.chat_scroll.add_widget(self.chat_label)
+        self.add_widget(self.chat_scroll)
+
+        # Input box
+        self.input_box = TextInput(hint_text="Enter your question...", multiline=False)
+        self.add_widget(self.input_box)
+
+        # Send button
+        send_btn = Button(text="Send")
+        send_btn.bind(on_press=self.send_message)
+        self.add_widget(send_btn)
+
+    def send_message(self, instance):
+        user_input = self.input_box.text.strip()
+        if not user_input:
+            return
+
+        # Append user message to chat
+        self.chat_label.text += f"\nYou: {user_input}\n"
+
+        try:
+            # Get OpenAI response (same as your get_chatbot_response)
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",  # Or "gpt-3.5-turbo"
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_input}
+                ],
+                max_tokens=500,
+                temperature=0.7
+            )
+            bot_reply = response.choices[0].message.content.strip()
+        except Exception as e:
+            bot_reply = f"Error: {str(e)} (Check API key/network)"
+
+        # Append bot response
+        self.chat_label.text += f"Bot: {bot_reply}\n\n"
+
+        # Clear input and scroll to bottom
+        self.input_box.text = ""
+        self.chat_scroll.scroll_y = 0
+
+class DSM5App(App):
+    def build(self):
+        return DSM5Chatbot()
+
+if __name__ == "__main__":
+    DSM5App().run()
